@@ -51,19 +51,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Сначала отправьте описание животного.", reply_markup=main_menu_keyboard())
 
+
+
+
+
+
+
+
 async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     breeds = get_breeds()
-    # Разбиваем породы на строки по две кнопки
-    keyboard = [
-        [
-            InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
-            InlineKeyboardButton(breeds[i + 1], callback_data=f"view_{breeds[i + 1]}")
-        ] if i + 1 < len(breeds) else [InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}")]
-        for i in range(0, len(breeds), 2)
-    ]
-    # Добавляем кнопку "Все породы" в конец списка кнопок
-    keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
+    
+    filtered_breeds = [breed for breed in breeds if breed.isalpha() and breed.isascii()]
+    if not filtered_breeds:
+        filtered_breeds = breeds
+    breeds = filtered_breeds
+    
+    keyboard = [[InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
+                 InlineKeyboardButton(breeds[i+1], callback_data=f"view_{breeds[i+1]}")]
+                for i in range(0, len(breeds) - 1, 2)]
 
+    if len(breeds) % 2 != 0:
+        keyboard.append([InlineKeyboardButton(breeds[-1], callback_data=f"view_{breeds[-1]}")])
+    keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
+    
     await update.message.reply_text(
         "Выберите породу для фильтрации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -72,27 +82,26 @@ async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # Отвечаем на callback запрос, чтобы убрать "часики"
-    breed = query.data.split('_', 1)[1] if query.data.startswith("view_") else None
-
+    breed = query.data.split('_')[1] if query.data != "view_all" else None
     ads = get_all_ads()
-    if query.data == "view_all":
-        breed = None  # Очищаем переменную породы, чтобы показать все объявления
-
+    
     if breed:
-        breed_lower = breed.lower()
-        ads = [ad for ad in ads if breed_lower in ad[3].lower()]
-
+        ads = [ad for ad in ads if ad[4].lower() == breed.lower() or breed.lower() in ad[4].lower()]
+    
     if not ads:
-        await query.message.reply_text(
-            "Нет объявлений для отображения по выбранной породе.",
-            reply_markup=main_menu_keyboard()
-        )
+        await query.message.reply_text("Нет объявлений для отображения по выбранной породе.", reply_markup=main_menu_keyboard())
         return
 
     context.user_data['ads'] = ads
     context.user_data['current_index'] = 0
+
     await show_ad(update, context)
+
+
+
+
+
+
 
 
 
@@ -102,22 +111,27 @@ async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_T
 async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_index = context.user_data['current_index']
     ads = context.user_data['ads']
-    description, photo_data, location, breed, user_telegram_id = ads[current_index]
+    
+    ad_id, description, photo_data, location, breed, user_telegram_id = ads[current_index]
+    
     breed_text = f"Порода: {breed}" if breed else "Порода: не указана"
     location_text = f"Местоположение: {location}" if location else "Местоположение: не указано"
-    
-    temp_photo_path = f'temp_photos/ad_{current_index}.jpg'
+
+    temp_photo_path = f'temp_photos/ad_{ad_id}.jpg'
     os.makedirs('temp_photos', exist_ok=True)
     with open(temp_photo_path, 'wb') as temp_file:
         temp_file.write(photo_data)
-    
+
     navigation_keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⬅️ Назад", callback_data='prev_ad'),
-            InlineKeyboardButton("➡️ Вперед", callback_data='next_ad')
+            InlineKeyboardButton("Вперед ➡️", callback_data='next_ad')
+        ],
+        [
+            InlineKeyboardButton("Забрать питомца", callback_data='adopt_pet')
         ]
     ])
-    
+
     query = update.callback_query
     if query:
         await query.message.delete()
@@ -134,36 +148,44 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-    
+async def handle_adopt_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query:
-        await query.message.delete()
-        await query.message.reply_photo(
-            photo=open(temp_photo_path, 'rb'),
-            caption=f"{breed_text}\nОписание: {description}\n{location_text}",
-            reply_markup=navigation_keyboard
-        )
-    else:
-        await update.message.reply_photo(
-            photo=open(temp_photo_path, 'rb'),
-            caption=f"{breed_text}\nОписание: {description}\n{location_text}",
-            reply_markup=navigation_keyboard
-        )
+    current_index = context.user_data.get('current_index', None)
 
-async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if current_index is None:
+        await query.message.reply_text("Не удалось получить данные об объявлении. Попробуйте снова.", reply_markup=main_menu_keyboard())
+        return
+
     ads = context.user_data['ads']
-    current_index = context.user_data['current_index']
-    if query.data == 'next_ad':
-        current_index = (current_index + 1) % len(ads)
-    elif query.data == 'prev_ad':
-        current_index = (current_index - 1) % len(ads)
-    context.user_data['current_index'] = current_index
-    await show_ad(update, context)
+    ad = ads[current_index]
+    owner_telegram_id = ad[5]
+
+    try:
+        owner_user = await context.bot.get_chat(owner_telegram_id)
+        username = f"@{owner_user.username}" if owner_user.username else "Пользователь не имеет username"
+    except telegram.error.BadRequest:
+        username = "Пользователь не начал чат с ботом или недоступен"
+
+    await query.answer()
+    await query.message.reply_text(
+        f"Чтобы забрать питомца, напишите владельцу: {username}",
+        reply_markup=main_menu_keyboard()
+    )
 
 async def donations(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Помощь для поиска животных по реквизитам 000000000.", reply_markup=main_menu_keyboard())
+    help_text = (
+        "🙏 **Поддержите нашу миссию по поиску животных!**\n\n"
+        "Реквизиты питомника:\n\n"
+        "`0000 0000 0000 0000`\n\n"
+        "Просто нажмите на номер карты, чтобы скопировать!"
+    )
+    
+    await update.message.reply_text(
+        help_text,
+        reply_markup=main_menu_keyboard(),
+        parse_mode='Markdown'
+    )
+
 
 async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -179,10 +201,26 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
 
+async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    ads = context.user_data.get('ads', [])
+    current_index = context.user_data.get('current_index', 0)
+    
+    if query.data == 'next_ad':
+        current_index = (current_index + 1) % len(ads)
+    elif query.data == 'prev_ad':
+        current_index = (current_index - 1) % len(ads)
+    
+    context.user_data['current_index'] = current_index
+    await show_ad(update, context)
+
+
 def main():
     from telegram.ext import Application
     init_db()
-    token = "7764937203:AAH9kBEQTlWg6QWXp4NkyaUMtk29tD0QTdY"
+    token = "7951976644:AAHhdZsL1sCoSQtOgvm1W5nKJJOCuFvRGsw"
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex("➕ Добавить объявление"), handle_add))
@@ -193,6 +231,8 @@ def main():
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(handle_breed_selection, pattern="^view_"))
     application.add_handler(CallbackQueryHandler(navigate_ads, pattern='^(prev_ad|next_ad)$'))
+    application.add_handler(CallbackQueryHandler(handle_adopt_pet, pattern='^adopt_pet$'))
+    
 
     application.run_polling()
 
