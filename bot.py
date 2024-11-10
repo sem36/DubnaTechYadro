@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from fastapi_integration import get_breed_from_image
-from db import save_ad_to_db, get_all_ads, get_breeds, init_db
+from db import save_ad_to_db, get_all_ads, get_breeds, init_db,update_ad_with_telegram
 import os
 
 def main_menu_keyboard():
@@ -57,8 +57,10 @@ async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(breed, callback_data=f"view_{breed}") for breed in breeds]]
     keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
     await update.message.reply_text(
+        "Выберите породу для фильтрации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
 
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -89,9 +91,6 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton("⬅️ Назад", callback_data='prev_ad'),
             InlineKeyboardButton("➡️ Вперед", callback_data='next_ad')
-        ],
-        [
-            InlineKeyboardButton("Беру", callback_data=f'pick_ad_{current_index}')  # Кнопка "Беру"
         ]
     ])
     
@@ -126,32 +125,6 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=f"{breed_text}\nОписание: {description}\n{location_text}",
             reply_markup=navigation_keyboard
         )
-
-async def handle_borrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    
-    ad_index = int(query.data.split('_')[2])
-    ads = context.user_data['ads']
-    owner_telegram_id = ads[ad_index]
-
-    owner_telegram_id = str(owner_telegram_id)
-
-    try:
-        owner_user = await context.bot.get_chat(owner_telegram_id)
-    except Exception as e:
-        owner_user = None
-        print(f"Ошибка при получении информации о владельце: {e}")
-        
-
-    if owner_user and owner_user.username:
-        owner_contact = f"Контакт владельца: @{owner_user.username}"
-    else:
-        owner_contact = f"Контакт владельца: {owner_telegram_id}"
-
-    await query.message.reply_text(f"Вы взяли это объявление! {owner_contact}")
-
 
 async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -192,11 +165,11 @@ def main():
     application.add_handler(MessageHandler(filters.Regex("👀 Посмотреть объявления"), handle_view))
     application.add_handler(MessageHandler(filters.Regex("🔍 Найти объявление"), handle_search))
     application.add_handler(MessageHandler(filters.Regex("ℹ️ Помощь"), handle_help))
-    application.add_handler(CallbackQueryHandler(handle_borrow, pattern='^pick_ad_'))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(handle_breed_selection, pattern="^view_"))
     application.add_handler(CallbackQueryHandler(navigate_ads, pattern='^(prev_ad|next_ad)$'))
+
     application.run_polling()
 
 if __name__ == '__main__':
