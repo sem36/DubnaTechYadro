@@ -60,12 +60,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     breeds = get_breeds()
+<<<<<<< HEAD
     
     filtered_breeds = [breed for breed in breeds if breed.isalpha() and breed.isascii()]
     if not filtered_breeds:
         filtered_breeds = breeds
     breeds = filtered_breeds
     
+=======
+>>>>>>> main
     keyboard = [[InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
                  InlineKeyboardButton(breeds[i+1], callback_data=f"view_{breeds[i+1]}")]
                 for i in range(0, len(breeds) - 1, 2)]
@@ -80,13 +83,21 @@ async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     breed = query.data.split('_')[1] if query.data != "view_all" else None
     ads = get_all_ads()
     
     if breed:
+<<<<<<< HEAD
         ads = [ad for ad in ads if ad[4].lower() == breed.lower() or breed.lower() in ad[4].lower()]
+=======
+        ads = [ad for ad in ads if ad[4] == breed]
+>>>>>>> main
     
     if not ads:
         await query.message.reply_text("Нет объявлений для отображения по выбранной породе.", reply_markup=main_menu_keyboard())
@@ -99,6 +110,7 @@ async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_T
 
 
 
+<<<<<<< HEAD
 
 
 
@@ -108,6 +120,8 @@ async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_T
 
 
 
+=======
+>>>>>>> main
 async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_index = context.user_data['current_index']
     ads = context.user_data['ads']
@@ -168,7 +182,11 @@ async def handle_adopt_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
     await query.message.reply_text(
+<<<<<<< HEAD
         f"Чтобы забрать питомца, напишите владельцу: {username}",
+=======
+        f"Чтобы забрать питомца, напишите: {username}",
+>>>>>>> main
         reply_markup=main_menu_keyboard()
     )
 

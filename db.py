@@ -1,6 +1,10 @@
 import sqlite3
 
+<<<<<<< HEAD
 DB_PATH = r'animals_ads.db'
+=======
+DB_PATH = r'E:\Projects\DubnaTechYadro-Dima-K\animals_ads.db'
+>>>>>>> main
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -31,7 +35,7 @@ def save_ad_to_db(description, photo_path, location=None, breed=None, user_teleg
 def get_all_ads():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('SELECT description, photo, location, breed, user_telegram_id FROM ads')
+    cursor.execute('SELECT id, description, photo, location, breed, user_telegram_id FROM ads')
     ads = cursor.fetchall()
     conn.close()
     return ads
