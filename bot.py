@@ -51,36 +51,53 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Сначала отправьте описание животного.", reply_markup=main_menu_keyboard())
 
-
 async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     breeds = get_breeds()
-    keyboard = [[InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
-                 InlineKeyboardButton(breeds[i+1], callback_data=f"view_{breeds[i+1]}")]
-                for i in range(0, len(breeds) - 1, 2)]
-
-    if len(breeds) % 2 != 0:
-        keyboard.append([InlineKeyboardButton(breeds[-1], callback_data=f"view_{breeds[-1]}")])
+    # Разбиваем породы на строки по две кнопки
+    keyboard = [
+        [
+            InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
+            InlineKeyboardButton(breeds[i + 1], callback_data=f"view_{breeds[i + 1]}")
+        ] if i + 1 < len(breeds) else [InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}")]
+        for i in range(0, len(breeds), 2)
+    ]
+    # Добавляем кнопку "Все породы" в конец списка кнопок
     keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
-    
+
     await update.message.reply_text(
         "Выберите породу для фильтрации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
-
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    breed = query.data.split('_')[1] if query.data != "view_all" else None
+    await query.answer()  # Отвечаем на callback запрос, чтобы убрать "часики"
+    breed = query.data.split('_', 1)[1] if query.data.startswith("view_") else None
+
     ads = get_all_ads()
+    if query.data == "view_all":
+        breed = None  # Очищаем переменную породы, чтобы показать все объявления
+
     if breed:
-        ads = [ad for ad in ads if ad[3] == breed]
+        breed_lower = breed.lower()
+        ads = [ad for ad in ads if breed_lower in ad[3].lower()]
+
     if not ads:
-        await query.message.reply_text("Нет объявлений для отображения по выбранной породе.", reply_markup=main_menu_keyboard())
+        await query.message.reply_text(
+            "Нет объявлений для отображения по выбранной породе.",
+            reply_markup=main_menu_keyboard()
+        )
         return
+
     context.user_data['ads'] = ads
     context.user_data['current_index'] = 0
     await show_ad(update, context)
+
+
+
+
+
 
 async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_index = context.user_data['current_index']
