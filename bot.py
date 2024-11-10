@@ -1,4 +1,5 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+import telegram
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from fastapi_integration import get_breed_from_image
 from db import save_ad_to_db, get_all_ads, get_breeds, init_db,update_ad_with_telegram
