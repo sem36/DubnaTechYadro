@@ -1,14 +1,14 @@
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from fastapi_integration import get_breed_from_image
-from db import save_ad_to_db, get_all_ads, get_breeds, init_db
+from db import save_ad_to_db, get_all_ads, get_breeds, init_db,update_ad_with_telegram
 import os
 
 def main_menu_keyboard():
     keyboard = [
         [KeyboardButton("➕ Добавить объявление")],
         [KeyboardButton("👀 Посмотреть объявления")],
-        [KeyboardButton("🔍 Найти объявление")],
+        [KeyboardButton("🫶 Благотворительность")],
         [KeyboardButton("ℹ️ Помощь")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -54,11 +54,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     breeds = get_breeds()
-    keyboard = [[InlineKeyboardButton(breed, callback_data=f"view_{breed}") for breed in breeds]]
+    keyboard = [[InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
+                 InlineKeyboardButton(breeds[i+1], callback_data=f"view_{breeds[i+1]}")]
+                for i in range(0, len(breeds) - 1, 2)]
+
+    if len(breeds) % 2 != 0:
+        keyboard.append([InlineKeyboardButton(breeds[-1], callback_data=f"view_{breeds[-1]}")])
     keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
+    
     await update.message.reply_text(
+        "Выберите породу для фильтрации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
+
 
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -89,9 +98,6 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton("⬅️ Назад", callback_data='prev_ad'),
             InlineKeyboardButton("➡️ Вперед", callback_data='next_ad')
-        ],
-        [
-            InlineKeyboardButton("Беру", callback_data=f'pick_ad_{current_index}')  # Кнопка "Беру"
         ]
     ])
     
@@ -127,32 +133,6 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=navigation_keyboard
         )
 
-async def handle_borrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    
-    ad_index = int(query.data.split('_')[2])
-    ads = context.user_data['ads']
-    owner_telegram_id = ads[ad_index]
-
-    owner_telegram_id = str(owner_telegram_id)
-
-    try:
-        owner_user = await context.bot.get_chat(owner_telegram_id)
-    except Exception as e:
-        owner_user = None
-        print(f"Ошибка при получении информации о владельце: {e}")
-        
-
-    if owner_user and owner_user.username:
-        owner_contact = f"Контакт владельца: @{owner_user.username}"
-    else:
-        owner_contact = f"Контакт владельца: {owner_telegram_id}"
-
-    await query.message.reply_text(f"Вы взяли это объявление! {owner_contact}")
-
-
 async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -165,8 +145,8 @@ async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['current_index'] = current_index
     await show_ad(update, context)
 
-async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 В разработке: возможность фильтрации по критериям.", reply_markup=main_menu_keyboard())
+async def donations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Помощь для поиска животных по реквизитам 000000000.", reply_markup=main_menu_keyboard())
 
 async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -190,13 +170,13 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex("➕ Добавить объявление"), handle_add))
     application.add_handler(MessageHandler(filters.Regex("👀 Посмотреть объявления"), handle_view))
-    application.add_handler(MessageHandler(filters.Regex("🔍 Найти объявление"), handle_search))
+    application.add_handler(MessageHandler(filters.Regex("🫶 Благотворительность"), donations))
     application.add_handler(MessageHandler(filters.Regex("ℹ️ Помощь"), handle_help))
-    application.add_handler(CallbackQueryHandler(handle_borrow, pattern='^pick_ad_'))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(handle_breed_selection, pattern="^view_"))
     application.add_handler(CallbackQueryHandler(navigate_ads, pattern='^(prev_ad|next_ad)$'))
+
     application.run_polling()
 
 if __name__ == '__main__':
