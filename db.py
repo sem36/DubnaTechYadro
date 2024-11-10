@@ -1,6 +1,6 @@
 import sqlite3
 
-DB_PATH = r'/home/sem/Documents/DubnaTechYadro/animals_ads.db'
+DB_PATH = r'E:\Projects\DubnaTechYadro-Dima-A\animals_ads.db'
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)

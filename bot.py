@@ -8,7 +8,7 @@ def main_menu_keyboard():
     keyboard = [
         [KeyboardButton("➕ Добавить объявление")],
         [KeyboardButton("👀 Посмотреть объявления")],
-        [KeyboardButton("🔍 Найти объявление")],
+        [KeyboardButton("🫶 Благотворительность")],
         [KeyboardButton("ℹ️ Помощь")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -54,12 +54,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     breeds = get_breeds()
-    keyboard = [[InlineKeyboardButton(breed, callback_data=f"view_{breed}") for breed in breeds]]
+    keyboard = [[InlineKeyboardButton(breeds[i], callback_data=f"view_{breeds[i]}"),
+                 InlineKeyboardButton(breeds[i+1], callback_data=f"view_{breeds[i+1]}")]
+                for i in range(0, len(breeds) - 1, 2)]
+
+    if len(breeds) % 2 != 0:
+        keyboard.append([InlineKeyboardButton(breeds[-1], callback_data=f"view_{breeds[-1]}")])
     keyboard.append([InlineKeyboardButton("Все породы", callback_data="view_all")])
+    
     await update.message.reply_text(
         "Выберите породу для фильтрации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
 
 
 async def handle_breed_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,7 +97,7 @@ async def show_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     navigation_keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⬅️ Назад", callback_data='prev_ad'),
-            InlineKeyboardButton("➡️ Вперед", callback_data='next_ad')
+            InlineKeyboardButton("Вперед ➡️", callback_data='next_ad')
         ]
     ])
     
@@ -138,8 +145,20 @@ async def navigate_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['current_index'] = current_index
     await show_ad(update, context)
 
-async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 В разработке: возможность фильтрации по критериям.", reply_markup=main_menu_keyboard())
+async def donations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "🙏 **Поддержите нашу миссию по поиску животных!**\n\n"
+        "Реквизиты питомника:\n\n"
+        "`0000 0000 0000 0000`\n\n"
+        "Просто нажмите на номер карты, чтобы скопировать!"
+    )
+    
+    await update.message.reply_text(
+        help_text,
+        reply_markup=main_menu_keyboard(),
+        parse_mode='Markdown'
+    )
+
 
 async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -163,7 +182,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex("➕ Добавить объявление"), handle_add))
     application.add_handler(MessageHandler(filters.Regex("👀 Посмотреть объявления"), handle_view))
-    application.add_handler(MessageHandler(filters.Regex("🔍 Найти объявление"), handle_search))
+    application.add_handler(MessageHandler(filters.Regex("🫶 Благотворительность"), donations))
     application.add_handler(MessageHandler(filters.Regex("ℹ️ Помощь"), handle_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
